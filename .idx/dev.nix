@@ -20,18 +20,29 @@
     workspace = {
       # Runs when a workspace is first created with this `dev.nix` file
       onCreate = { };
-      # To run something each time the workspace is (re)started, use the `onStart` hook
+      # Reconnect ADB to the emulator each time the workspace starts
+      onStart = {
+        connect-android = {
+          command = ["adb" "connect" "localhost:5555"];
+        };
+      };
     };
     # Enable previews and customize configuration
     previews = {
       enable = true;
       previews = {
         web = {
-          command = ["flutter" "run" "--machine" "-d" "web-server" "--web-hostname" "0.0.0.0" "--web-port" "$PORT"];
+          command = [
+            "flutter" "run" "--machine" "-d" "web-server"
+            "--web-hostname" "0.0.0.0"
+            "--web-port" "$PORT"
+            "--web-header" "X-Frame-Options=ALLOWALL"
+            "--web-header" "Content-Security-Policy=frame-ancestors *"
+          ];
           manager = "flutter";
         };
         android = {
-          command = ["flutter" "run" "--machine" "-d" "android" "-d" "localhost:5555"];
+          command = ["flutter" "run" "--machine" "-d" "localhost:5555"];
           manager = "flutter";
         };
       };
