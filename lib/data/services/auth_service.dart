@@ -35,7 +35,11 @@ class AuthService {
     } on AuthException catch (e) {
       throw AppException(_mapAuthError(e.message));
     } catch (e) {
-      throw AppException('Sign-up failed. Please try again.');
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('socketexception') || msg.contains('failed host lookup') || msg.contains('clientexception')) {
+        throw const AppException('Cannot connect to the server. Please check your internet connection.');
+      }
+      throw AppException('Sign-up failed: ${e.toString()}');
     }
   }
 
@@ -49,6 +53,10 @@ class AuthService {
     } on AuthException catch (e) {
       throw AppException(_mapAuthError(e.message));
     } catch (e) {
+      final msg = e.toString().toLowerCase();
+      if (msg.contains('socketexception') || msg.contains('failed host lookup') || msg.contains('clientexception')) {
+        throw const AppException('Cannot connect to the server. Please check your internet connection.');
+      }
       throw AppException('Login failed. Please try again.');
     }
   }
