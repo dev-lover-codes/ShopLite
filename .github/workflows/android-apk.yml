@@ -178,8 +178,8 @@ jobs:
           echo "Find the APK in the **Artifacts** section of this run." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish to GitHub Releases
-        # Only run when a v* tag is pushed, NOT on regular branch commits.
-        if: startsWith(github.ref, 'refs/tags/v')
+        # Publish release on main branch pushes, version tags, or manual workflow triggers
+        if: startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.vars.outputs.tag_name }}
