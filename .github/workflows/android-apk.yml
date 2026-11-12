@@ -87,22 +87,15 @@ jobs:
         run: flutter test
 
       - name: Validate required secrets
-        # Fail early with a readable message if secrets are not configured.
-        # Secret values are NEVER printed; only their presence is checked.
+        # Checks if repository secrets are set and prints guidance.
+        # Secret values are NEVER printed.
         run: |
-          MISSING=""
-          if [ -z "${{ secrets.SUPABASE_URL }}" ]; then
-            MISSING="$MISSING SUPABASE_URL"
+          if [ -z "${{ secrets.SUPABASE_URL }}" ] || [ -z "${{ secrets.SUPABASE_ANON_KEY }}" ]; then
+            echo "::warning::SUPABASE_URL or SUPABASE_ANON_KEY repository secret is not set yet."
+            echo "::warning::To connect to your live database, set them with: gh secret set SUPABASE_URL and gh secret set SUPABASE_ANON_KEY"
+          else
+            echo "All required secrets are present."
           fi
-          if [ -z "${{ secrets.SUPABASE_ANON_KEY }}" ]; then
-            MISSING="$MISSING SUPABASE_ANON_KEY"
-          fi
-          if [ -n "$MISSING" ]; then
-            echo "::error::Required repository secrets are not set:$MISSING"
-            echo "::error::Go to Settings → Secrets and variables → Actions and add them."
-            exit 1
-          fi
-          echo "All required secrets are present."
 
       - name: Resolve release tag and version
         id: vars
@@ -126,15 +119,24 @@ jobs:
           echo "Resolved tag: ${TAG_NAME}  short SHA: ${SHORT_SHA}"
 
       - name: Build Android release APK
-        # Secrets are injected as --dart-define flags.
-        # They are never echoed or stored in any file.
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
-          flutter build apk --release \
-            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
-            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
+          DART_DEFINES=""
+          if [ -n "$SUPABASE_URL" ]; then
+            echo "Injecting SUPABASE_URL from repository secrets"
+            DART_DEFINES="$DART_DEFINES --dart-define=SUPABASE_URL=$SUPABASE_URL"
+          else
+            echo "::warning::SUPABASE_URL secret is not set, building without it (App Not Configured screen will display until set)"
+          fi
+          if [ -n "$SUPABASE_ANON_KEY" ]; then
+            echo "Injecting SUPABASE_ANON_KEY from repository secrets"
+            DART_DEFINES="$DART_DEFINES --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY"
+          else
+            echo "::warning::SUPABASE_ANON_KEY secret is not set"
+          fi
+          flutter build apk --release $DART_DEFINES
 
       - name: Prepare release APK
         id: artifacts
