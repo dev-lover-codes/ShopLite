@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# ShopLite: local environment file containing Supabase keys – never commit this.
+env.json

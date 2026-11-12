@@ -1,0 +1,188 @@
+# GitHub Actions workflow: Flutter Android Release
+# Builds a release APK on every push and PR, and publishes a GitHub Release
+# when a v* tag is pushed. Secrets are injected at build time via --dart-define.
+
+name: Flutter Android Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag (e.g. v1.5.0). Defaults to v<pubspec version> if left empty.'
+        required: false
+        default: ''
+      draft:
+        description: 'Publish as draft release'
+        required: false
+        type: boolean
+        default: false
+      prerelease:
+        description: 'Publish as prerelease'
+        required: false
+        type: boolean
+        default: false
+
+# Cancel any in-progress run on the same branch to save CI minutes.
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: read
+  issues: read
+
+jobs:
+  build-and-release:
+    name: Build & Release Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      pull-requests: read
+      issues: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java 17 (Temurin)
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Set up Flutter (stable)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Verify Flutter installation
+        run: flutter doctor -v
+
+      - name: Grant execute permission for Gradle wrapper
+        run: |
+          if [ -f android/gradlew ]; then
+            chmod +x android/gradlew
+          fi
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run code analysis
+        # --no-fatal-infos: treat INFO-level hints as non-fatal.
+        run: flutter analyze --no-fatal-infos
+
+      - name: Run automated tests
+        run: flutter test
+
+      - name: Validate required secrets
+        # Fail early with a readable message if secrets are not configured.
+        # Secret values are NEVER printed; only their presence is checked.
+        run: |
+          MISSING=""
+          if [ -z "${{ secrets.SUPABASE_URL }}" ]; then
+            MISSING="$MISSING SUPABASE_URL"
+          fi
+          if [ -z "${{ secrets.SUPABASE_ANON_KEY }}" ]; then
+            MISSING="$MISSING SUPABASE_ANON_KEY"
+          fi
+          if [ -n "$MISSING" ]; then
+            echo "::error::Required repository secrets are not set:$MISSING"
+            echo "::error::Go to Settings → Secrets and variables → Actions and add them."
+            exit 1
+          fi
+          echo "All required secrets are present."
+
+      - name: Resolve release tag and version
+        id: vars
+        run: |
+          PUBSPEC_VERSION=$(grep '^version: ' pubspec.yaml | head -n 1 \
+            | awk '{print $2}' | cut -d'+' -f1 | tr -d '[:space:]')
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] \
+              && [ -n "${{ github.event.inputs.tag_name }}" ]; then
+            TAG_NAME="${{ github.event.inputs.tag_name }}"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG_NAME="${{ github.ref_name }}"
+          else
+            TAG_NAME="v${PUBSPEC_VERSION}"
+          fi
+
+          SHORT_SHA="${GITHUB_SHA::7}"
+          echo "tag_name=${TAG_NAME}"   >> "$GITHUB_OUTPUT"
+          echo "version=${PUBSPEC_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "Resolved tag: ${TAG_NAME}  short SHA: ${SHORT_SHA}"
+
+      - name: Build Android release APK
+        # Secrets are injected as --dart-define flags.
+        # They are never echoed or stored in any file.
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          flutter build apk --release \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
+
+      - name: Prepare release APK
+        id: artifacts
+        run: |
+          SHORT_SHA="${{ steps.vars.outputs.short_sha }}"
+          SRC="build/app/outputs/flutter-apk/app-release.apk"
+          DEST="shoplite-${SHORT_SHA}.apk"
+
+          if [ ! -f "$SRC" ]; then
+            echo "::error::Expected APK not found at $SRC"
+            exit 1
+          fi
+
+          cp "$SRC" "$DEST"
+          echo "apk_name=${DEST}"  >> "$GITHUB_OUTPUT"
+          echo "apk_path=${DEST}"  >> "$GITHUB_OUTPUT"
+          echo "Prepared: $DEST  ($(du -sh $DEST | cut -f1))"
+
+      - name: Upload APK as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: shoplite-${{ steps.vars.outputs.short_sha }}-apk
+          path: ${{ steps.artifacts.outputs.apk_path }}
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Write job summary
+        run: |
+          echo "## 🛍️ ShopLite Build Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field       | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| APK file    | \`${{ steps.artifacts.outputs.apk_name }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Commit SHA  | \`${{ github.sha }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Tag / Ver   | \`${{ steps.vars.outputs.tag_name }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Build time  | $(date -u '+%Y-%m-%d %H:%M UTC') |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Find the APK in the **Artifacts** section of this run." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish to GitHub Releases
+        # Only run when a v* tag is pushed, NOT on regular branch commits.
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.vars.outputs.tag_name }}
+          name: ShopLite ${{ steps.vars.outputs.tag_name }}
+          files: ${{ steps.artifacts.outputs.apk_path }}
+          draft: ${{ github.event.inputs.draft == 'true' }}
+          prerelease: ${{ github.event.inputs.prerelease == 'true' }}
+          generate_release_notes: true
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}

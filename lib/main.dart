@@ -1,69 +1,29 @@
+// App entry point. Initialises Supabase, then hands control to ShopLiteApp
+// wrapped in a ProviderScope so every Riverpod provider is available.
+// If the environment variables are missing the user sees a friendly error.
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shoplite/app/app.dart';
+import 'package:shoplite/core/config/env.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-void main() {
-  runApp(const MyApp());
-}
+Future<void> main() async {
+  // Ensure Flutter's widget binding is ready before calling platform code.
+  WidgetsFlutterBinding.ensureInitialized();
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
-      ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+  // If environment variables are missing, skip Supabase init and show the
+  // "not configured" screen via the ShopLiteApp guard in env.dart.
+  if (Env.isConfigured) {
+    await Supabase.initialize(
+      url: Env.supabaseUrl,
+      // publishableKey is the current name for the anon key in supabase_flutter 2.x+
+      publishableKey: Env.supabaseAnonKey,
     );
   }
-}
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  final String title;
-
-  @override
-  State<MyHomePage> createState() => _MyHomePageState();
-}
-
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-
-  void _incrementCounter() {
-    setState(() {
-      _counter++;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text(widget.title),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            const Text(
-              'You have pushed the button this many times:',
-            ),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ),
-    );
-  }
+  runApp(
+    // ProviderScope is the root of the Riverpod tree; must wrap the whole app.
+    const ProviderScope(child: ShopLiteApp()),
+  );
 }

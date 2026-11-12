@@ -1,5 +1,5 @@
-name: myapp
-description: "A new Flutter project."
+name: shoplite
+description: "A product browser with Supabase auth and favourites."
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -10,11 +10,28 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+
+  # State management
+  flutter_riverpod: ^2.6.1
+
+  # Declarative navigation with redirect guards
+  go_router: ^14.8.1
+
+  # Supabase Flutter SDK for auth and database
+  supabase_flutter: ^2.9.0
+
+  # HTTP client for the product API
+  http: ^1.4.0
+
+  # Google Fonts for typography
+  google_fonts: ^6.2.1
+
   cupertino_icons: ^1.0.8
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
   flutter_lints: ^5.0.0
 
 flutter:
