@@ -82,10 +82,19 @@ class _SplashScreenState extends ConsumerState<SplashScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             // App logo / icon
-            Icon(
-              Icons.shopping_bag_outlined,
-              size: 80,
-              color: colorScheme.onPrimary,
+            ClipRRect(
+              borderRadius: BorderRadius.circular(24),
+              child: Image.asset(
+                'assets/icon/app_icon.png',
+                width: 96,
+                height: 96,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => Icon(
+                  Icons.shopping_bag_outlined,
+                  size: 80,
+                  color: colorScheme.onPrimary,
+                ),
+              ),
             ),
             const SizedBox(height: 16),
             Text(
