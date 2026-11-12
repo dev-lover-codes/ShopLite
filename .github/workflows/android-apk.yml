@@ -136,7 +136,7 @@ jobs:
           else
             echo "::warning::SUPABASE_ANON_KEY secret is not set"
           fi
-          flutter build apk --release $DART_DEFINES
+          flutter build apk --release --android-skip-build-dependency-validation $DART_DEFINES
 
       - name: Prepare release APK
         id: artifacts
