@@ -7,6 +7,7 @@
   packages = [
     pkgs.jdk21
     pkgs.unzip
+    pkgs.supabase-cli
     pkgs.gh
   ];
   # Sets environment variables in the workspace
@@ -20,12 +21,8 @@
     workspace = {
       # Runs when a workspace is first created with this `dev.nix` file
       onCreate = { };
-      # Reconnect ADB to the emulator each time the workspace starts
-      onStart = {
-        connect-android = {
-          command = ["adb" "connect" "localhost:5555"];
-        };
-      };
+      # Runs each time the workspace starts
+      onStart = { };
     };
     # Enable previews and customize configuration
     previews = {
@@ -42,7 +39,7 @@
           manager = "flutter";
         };
         android = {
-          command = ["flutter" "run" "--machine" "-d" "localhost:5555"];
+          command = ["flutter" "run" "--machine" "-d" "android"];
           manager = "flutter";
         };
       };
